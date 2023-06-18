@@ -1,5 +1,5 @@
 [package]
-name = "better_funny_cat_photos_scraper"
+name = "free_funny_cat_photos_downloader"
 version = "0.1.0"
 edition = "2021"
 
