@@ -9,7 +9,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use futures::{stream, StreamExt};
-use inquire::{validator::Validation, CustomType, MultiSelect, Text};
+use inquire::{validator::Validation, CustomType, MultiSelect, Select, Text};
 use rand::{seq::IteratorRandom, thread_rng};
 use reqwest::Client;
 use simplelog::{CombinedLogger, Config, SharedLogger, TermLogger, WriteLogger};
@@ -21,6 +21,18 @@ const PARALLEL_REQUESTS: usize = 10;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let choices = vec!["funny cat photos", "stuff on my cat"];
+    let source = Select::new("source:", choices).prompt()?;
+
+    if source == "funny cat photos" {
+        funny_cat_photos().await?;
+    } else {
+        todo!();
+    }
+    Ok(())
+}
+
+async fn funny_cat_photos() -> Result<()> {
     let number_of_requests = CustomType::<usize>::new("amount:")
         .with_placeholder("10")
         .with_error_message("put a fucking number")
@@ -81,19 +93,19 @@ async fn main() -> Result<()> {
     CombinedLogger::init(log_places)?;
 
     if log_to_terminal {
-        scrape_site(number_of_requests, save_path).await;
+        scrape_esaba(number_of_requests, save_path).await;
         println!("🐱 enjoy the cats");
     } else {
         let mut rng = thread_rng();
         let spinner = spinners::Spinners::iter().choose(&mut rng).unwrap();
         let mut sp = Spinner::new(spinner, "doing it...".into());
-        scrape_site(number_of_requests, save_path).await;
+        scrape_esaba(number_of_requests, save_path).await;
         sp.stop_and_persist("🐱", "enjoy the cats".into());
     }
     Ok(())
 }
 
-async fn scrape_site(number_of_requests: usize, save_path: String) {
+async fn scrape_esaba(number_of_requests: usize, save_path: String) {
     let urls = vec!["https://blog.esaba.com/projects/catphotos/catphotos.php"; number_of_requests];
     let client = Client::new();
     let bodies = stream::iter(urls)
