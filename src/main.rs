@@ -3,7 +3,7 @@ extern crate log;
 extern crate simplelog;
 
 use std::{
-    fs::{create_dir_all, read_to_string, File},
+    fs::{create_dir_all, File},
     io::Write,
 };
 
@@ -34,18 +34,6 @@ async fn main() -> Result<()> {
 }
 
 async fn funny_cat_photos() -> Result<()> {
-    let html = read_to_string("index.html")?;
-    let document = Html::parse_document(&html);
-    let selector = Selector::parse("a").unwrap();
-    let links = document.select(&selector);
-    let is_image = |x: &ElementRef<'_>| x.inner_html().ends_with(".jpg");
-    let is_full_res = |x: &ElementRef<'_>| !x.inner_html().contains("_4");
-    let values = links
-        .filter(is_image)
-        .filter(is_full_res)
-        .map(|x| x.inner_html())
-        .collect::<Vec<String>>();
-
     let validator = |input: &str| match create_dir_all(input) {
         Err(error) => Ok(Validation::Invalid(error.into())),
         Ok(_) => Ok(Validation::Valid),
@@ -98,20 +86,39 @@ async fn funny_cat_photos() -> Result<()> {
     CombinedLogger::init(log_places)?;
 
     if log_to_terminal {
-        scrape_esaba(values, save_path).await;
+        scrape_esaba(save_path).await;
         println!("🐱 enjoy the cats");
     } else {
         let mut rng = thread_rng();
         let spinner = spinners::Spinners::iter().choose(&mut rng).unwrap();
         let mut sp = Spinner::new(spinner, "doing it...".into());
-        scrape_esaba(values, save_path).await;
+        scrape_esaba(save_path).await;
         sp.stop_and_persist("🐱", "enjoy the cats".into());
     }
     Ok(())
 }
 
-async fn scrape_esaba(images: Vec<String>, save_path: String) {
-    let urls = images
+async fn scrape_esaba(save_path: String) {
+    let client = Client::new();
+    info!("checking index");
+    let request = client
+        .get("https://blog.esaba.com/projects/catphotos/images/")
+        .send()
+        .await
+        .unwrap();
+    let string = request.text().await.unwrap();
+    let document = Html::parse_document(&string);
+    let selector = Selector::parse("a").unwrap();
+    let links = document.select(&selector);
+    let is_image = |x: &ElementRef<'_>| x.inner_html().ends_with(".jpg");
+    let is_full_res = |x: &ElementRef<'_>| !x.inner_html().contains("_4");
+    let values = links
+        .filter(is_image)
+        .filter(is_full_res)
+        .map(|x| x.inner_html())
+        .collect::<Vec<String>>();
+
+    let urls = values
         .iter()
         .map(|x| format!("https://blog.esaba.com/projects/catphotos/images/{x}"))
         .collect::<Vec<String>>();
@@ -121,7 +128,7 @@ async fn scrape_esaba(images: Vec<String>, save_path: String) {
         .map(|url| {
             let client = client.clone();
             tokio::spawn(async move {
-                info!("opening website");
+                info!("opening image");
                 // unwrap because it shouldn't be possible to be none
                 let resp = client.get(url).send().await.unwrap();
                 resp.bytes().await.unwrap()
